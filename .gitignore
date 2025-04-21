@@ -1,0 +1,10 @@
+# Shell Bash 
+
+# Temporäre Dateien
+*.swp
+*.bak
+*.tmp
+*.log
+
+# Backup-Dateien von Bash-Skripten
+*.sh~
