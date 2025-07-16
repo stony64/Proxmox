@@ -1,17 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Load translations
+source ./translation.func
+load_translations
+
+# Load git_clone_dotfiles function
+source ./git_clone_dotfiles.func
+
 ###############################################################################
 # Proxmox LXC Container Creator (Debian 12)
 # Author: Stony64
 # Version: 1.0 | 2025-04-21
 # Description:
-#     Secure container provisioning with advanced features:
-#     - Dual-stack networking (IPv4/IPv6)
-#     - SSH key or temporary password auth
-#     - POSIX-compliant error handling
-#     - Modular architecture
-#     - Multi-language support (EN/DE)
+#   Secure container provisioning with advanced features:
+#   - Dual-stack networking (IPv4/IPv6)
+#   - SSH key or temporary password authentication
+#   - POSIX-compliant error handling
+#   - Modular architecture
+#   - Multi-language support (EN/DE)
 ###############################################################################
 
 # ----------------------------------------------------------------------------
@@ -39,6 +46,8 @@ init_environment() {
     check_root_privileges
     configure_terminal
     load_translations
+    detect_next_ct_id
+    show_message "Automatically selected container ID: ${CT_ID}"
 }
 
 check_root_privileges() {
@@ -46,76 +55,26 @@ check_root_privileges() {
 }
 
 configure_terminal() {
-    stty erase ^H 2>/dev/null
+    stty erase ^H 2>/dev/null || true
 }
 
-# ----------------------------------------------------------------------------
-# Template Handling
-# ----------------------------------------------------------------------------
+####################################################
+# detect_next_ct_id – Automatically detect next available container ID
+####################################################
+detect_next_ct_id() {
+    local existing_ids next_id
+    existing_ids=$(pct list | tail -n +2 | awk '{print $1}' | sort -n)
+    next_id=100  # Starting ID, adjust as needed
 
-select_template() {
-    local templates=($(find "${TEMPLATE_PATH}" -name "${TEMPLATE_PATTERN}" -printf "%f\n"))
-    ((${#templates[@]} == 0)) && error_exit "No templates found in ${TEMPLATE_PATH}"
-
-    local menu_items=()
-    for tpl in "${templates[@]}"; do
-        menu_items+=("${tpl}" " ")
+    for id in $existing_ids; do
+        if (( id == next_id )); then
+            ((next_id++))
+        elif (( id > next_id )); then
+            break
+        fi
     done
 
-    TEMPLATE_FILE=$(whiptail --menu "Select template:" 20 70 10 "${menu_items[@]}" 3>&1 1>&2 2>&3)
-    [[ -z "${TEMPLATE_FILE}" ]] && error_exit "Template selection aborted"
-}
-
-# ----------------------------------------------------------------------------
-# Network Configuration
-# ----------------------------------------------------------------------------
-
-validate_ip_octet() {
-    [[ "$1" =~ ^([2-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-4])$ ]] && return 0 || return 1
-}
-
-get_ipv4_octet() {
-    while true; do
-        last_octet=$(whiptail --inputbox "${MSG[octet]}" 10 40 "" 3>&1 1>&2 2>&3)
-        validate_ip_octet "$last_octet" && break
-        show_message "${MSG[input_invalid]}"
-    done
-    CT_IPV4="${BASE_IPV4}${last_octet}"
-    CT_IPV6="${BASE_IPV6}${last_octet}"
-}
-
-# ----------------------------------------------------------------------------
-# Security Functions
-# ----------------------------------------------------------------------------
-
-generate_secure_password() {
-    openssl rand -base64 32 | tr -dc 'a-zA-Z0-9!%_-#' | head -c 24
-}
-
-create_password_file() {
-    local passwd_file=$(mktemp)
-    chmod 600 "${passwd_file}"
-    echo "${ROOT_PASSWORD}" >"${passwd_file}"
-    trap 'rm -f "${passwd_file}"' EXIT
-    echo "${passwd_file}"
-}
-
-# ----------------------------------------------------------------------------
-# Container Creation Command
-# ----------------------------------------------------------------------------
-
-build_pct_command() {
-    local passwd_file=$(create_password_file)
-
-    echo "pct create ${CT_ID} ${TEMPLATE_PATH}/${TEMPLATE_FILE} \
-    --hostname ${CT_HOSTNAME} \
-    --storage ${STORAGE} \
-    --rootfs ${DISK_SIZE} \
-    --password-stdin \
-    --features nesting=1 \
-    --unprivileged ${UNPRIVILEGED} \
-    --net0 name=eth0,bridge=${NET_BRIDGE},ip=${CT_IPV4}/24,gw=${GATEWAY_IPV4},ip6=${CT_IPV6}/64,gw6=${GATEWAY_IPV6} \
-    $([[ -n "${SSH_KEY_PATH}" ]] && echo "--ssh-public-keys ${SSH_KEY_PATH}")"
+    CT_ID=$next_id
 }
 
 # ----------------------------------------------------------------------------
@@ -133,123 +92,82 @@ show_message() {
 }
 
 # ----------------------------------------------------------------------------
-# Translation Management (can be moved to translation.func for clarity)
+# Template Selection
 # ----------------------------------------------------------------------------
 
-declare -A MSG
-load_translations() {
-    local lang
-    lang=$(whiptail --menu "Sprache wählen / Choose language:" 12 40 2 \
-        "de" "Deutsch" \
-        "en" "English" 3>&1 1>&2 2>&3)
-    [[ -z "$lang" ]] && lang="en"
-    export LANGCODE="$lang"
+select_template_file() {
+    local templates=()
+    mapfile -t templates < <(find "${TEMPLATE_PATH}" -name "${TEMPLATE_PATTERN}" -printf "%f\n")
+    ((${#templates[@]} == 0)) && error_exit "${MSG[template_none]}"
 
-    if [[ "$lang" == "de" ]]; then
-        MSG[welcome]="Willkommen zum LXC-Erstell-Skript!"
-        MSG[choose_type]="Bitte Container-Typ wählen:"
-        MSG[priv]="Privilegierter Container (weniger sicher)"
-        MSG[unpriv]="Unprivilegierter Container (empfohlen, sicherer)"
-        MSG[hostname]="Geben Sie den Hostnamen ein (nur Buchstaben, Zahlen, Bindestrich):"
-        MSG[password]="Geben Sie das Root-Passwort ein (mindestens 8 Zeichen):"
-        MSG[octet]="Geben Sie das letzte Oktett der IPv4-Adresse ein (z. B. 25):"
-        MSG[ssh_add]="Möchten Sie einen SSH-Key (*.pub) für root hinzufügen?"
-        MSG[ssh_prompt]="Pfad zum SSH-Public-Key (.pub) eingeben:"
-        MSG[ssh_invalid]="Ungültiger oder nicht existierender SSH-Key!"
-        MSG[summary]="Zusammenfassung:\n\nHostname: %s\nIPv4: %s\nIPv6: %s\nTyp: %s\nSSH-Key: %s\n\nSind diese Angaben korrekt?"
-        MSG[template_select]="Template auswählen:"
-        MSG[template_none]="Keine Template-Dateien gefunden!"
-        MSG[template_chosen]="Verwendetes Template:\n%s"
-        MSG[creating]="Container wird erstellt..."
-        MSG[created]="Container wurde erstellt."
-        MSG[ssh_setup]="SSH-Key wurde erfolgreich im Container hinterlegt."
-        MSG[ssh_temp]="Kein gültiger SSH-Key angegeben. Temporärer Root-Login via Passwort wird aktiviert."
-        MSG[locale_wait]="Warte, bis der Container startet..."
-        MSG[locale_ok]="Locales wurden erfolgreich konfiguriert."
-        MSG[locale_fail]="Fehler beim Konfigurieren der Locales."
-        MSG[update]="Container wird aktualisiert..."
-        MSG[update_ok]="Container wurde erfolgreich aktualisiert."
-        MSG[update_fail]="Fehler beim Aktualisieren des Containers."
-        MSG[download]="Lade benutzerdefinierte Dateien herunter..."
-        MSG[download_ok]="Alle Dateien wurden erfolgreich übertragen."
-        MSG[download_fail]="Fehler beim Herunterladen von %s"
-        MSG[cleanup]="Systembereinigung wird durchgeführt..."
-        MSG[cleanup_ok]="System wurde erfolgreich bereinigt."
-        MSG[cleanup_fail]="Fehler bei der Systembereinigung."
-        MSG[reboot]="Soll der Container jetzt neu gestartet werden?"
-        MSG[rebooting]="Container wird neu gestartet..."
-        MSG[abort]="Vorgang abgebrochen."
-        MSG[input_empty]="Eingabe darf nicht leer sein."
-        MSG[input_invalid]="Ungültige Eingabe. Bitte erneut versuchen."
-        MSG[yes]="Ja"
-        MSG[no]="Nein"
-    else
-        MSG[welcome]="Welcome to the LXC creation script!"
-        MSG[choose_type]="Please select container type:"
-        MSG[priv]="Privileged container (less secure)"
-        MSG[unpriv]="Unprivileged container (recommended, more secure)"
-        MSG[hostname]="Enter hostname (letters, numbers, dash only):"
-        MSG[password]="Enter root password (min. 8 chars):"
-        MSG[octet]="Enter last octet of IPv4 address (e.g. 25):"
-        MSG[ssh_add]="Do you want to add an SSH key (*.pub) for root?"
-        MSG[ssh_prompt]="Enter path to SSH public key (.pub):"
-        MSG[ssh_invalid]="Invalid or non-existent SSH key!"
-        MSG[summary]="Summary:\n\nHostname: %s\nIPv4: %s\nIPv6: %s\nType: %s\nSSH-Key: %s\n\nAre these values correct?"
-        MSG[template_select]="Select template:"
-        MSG[template_none]="No template files found!"
-        MSG[template_chosen]="Selected template:\n%s"
-        MSG[creating]="Creating container..."
-        MSG[created]="Container created."
-        MSG[ssh_setup]="SSH key successfully added to container."
-        MSG[ssh_temp]="No valid SSH key provided. Temporary root login via password will be enabled."
-        MSG[locale_wait]="Waiting for container to start..."
-        MSG[locale_ok]="Locales successfully configured."
-        MSG[locale_fail]="Failed to configure locales."
-        MSG[update]="Updating container..."
-        MSG[update_ok]="Container updated successfully."
-        MSG[update_fail]="Failed to update container."
-        MSG[download]="Downloading custom files..."
-        MSG[download_ok]="All files transferred successfully."
-        MSG[download_fail]="Failed to download %s"
-        MSG[cleanup]="Cleaning up system..."
-        MSG[cleanup_ok]="System cleanup successful."
-        MSG[cleanup_fail]="System cleanup failed."
-        MSG[reboot]="Do you want to reboot the container now?"
-        MSG[rebooting]="Rebooting container..."
-        MSG[abort]="Operation aborted."
-        MSG[input_empty]="Input must not be empty."
-        MSG[input_invalid]="Invalid input. Please try again."
-        MSG[yes]="Yes"
-        MSG[no]="No"
-    fi
+    local menu_items=()
+    for tpl in "${templates[@]}"; do
+        menu_items+=("${tpl}" " ")
+    done
+
+    TEMPLATE_FILE=$(whiptail --menu "${MSG[template_select]}" 20 70 10 "${menu_items[@]}" 3>&1 1>&2 2>&3)
+    [[ -z "${TEMPLATE_FILE}" ]] && error_exit "${MSG[abort]}"
 }
 
 # ----------------------------------------------------------------------------
-# User Input & Confirmation Workflow
+# Network Configuration
+# ----------------------------------------------------------------------------
+
+validate_ip_octet() {
+    [[ "$1" =~ ^([1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])$ ]] && return 0 || return 1
+}
+
+get_ipv4_octet() {
+    while true; do
+        local last_octet
+        last_octet=$(whiptail --inputbox "${MSG[octet]}" 10 40 "" 3>&1 1>&2 2>&3)
+        validate_ip_octet "$last_octet" && break
+        show_message "${MSG[input_invalid]}"
+    done
+    CT_IPV4="${BASE_IPV4}${last_octet}"
+    CT_IPV6="${BASE_IPV6}${last_octet}"
+}
+
+validate_ssh_key() {
+    [[ -f "$1" && "$1" == *.pub ]] || return 1
+}
+
+get_root_password() {
+    while true; do
+        ROOT_PASSWORD=$(whiptail --passwordbox "${MSG[password]}" 10 60 3>&1 1>&2 2>&3)
+        if [[ -z "$ROOT_PASSWORD" ]]; then
+            show_message "${MSG[input_empty]}"
+            continue
+        fi
+        if (( ${#ROOT_PASSWORD} < 8 )); then
+            show_message "${MSG[input_invalid]}"
+            continue
+        fi
+        break
+    done
+}
+
+# ----------------------------------------------------------------------------
+# Container Type Selection & User Input
 # ----------------------------------------------------------------------------
 
 select_container_type() {
-    local type=$(whiptail --menu "${MSG[choose_type]}" 12 60 2 \
+    local type
+    type=$(whiptail --menu "${MSG[choose_type]}" 12 60 2 \
         "1" "${MSG[unpriv]}" \
         "2" "${MSG[priv]}" 3>&1 1>&2 2>&3)
     case "$type" in
-    1) UNPRIVILEGED=1 ;;
-    2) UNPRIVILEGED=0 ;;
-    *) error_exit "${MSG[abort]}" ;;
+        1) UNPRIVILEGED=1 ;;
+        2) UNPRIVILEGED=0 ;;
+        *) error_exit "${MSG[abort]}" ;;
     esac
 }
 
 collect_user_inputs() {
     while true; do
         CT_HOSTNAME=$(whiptail --inputbox "${MSG[hostname]}" 10 60 "" 3>&1 1>&2 2>&3)
-        [[ -z "$CT_HOSTNAME" ]] && {
-            show_message "${MSG[input_empty]}"
-            continue
-        }
-        [[ ! "$CT_HOSTNAME" =~ ^[a-zA-Z0-9-]+$ ]] && {
-            show_message "${MSG[input_invalid]}"
-            continue
-        }
+        [[ -z "$CT_HOSTNAME" ]] && { show_message "${MSG[input_empty]}"; continue; }
+        [[ ! "$CT_HOSTNAME" =~ ^[a-zA-Z0-9-]+$ ]] && { show_message "${MSG[input_invalid]}"; continue; }
         break
     done
 
@@ -274,11 +192,7 @@ collect_user_inputs() {
 
 confirm_user_inputs() {
     local sshInfo
-    if [[ -n "$SSH_KEY_PATH" ]]; then
-        sshInfo="SSH key"
-    else
-        sshInfo="Temporary root password"
-    fi
+    [[ -n "$SSH_KEY_PATH" ]] && sshInfo="${MSG[yes]}" || sshInfo="${MSG[no]}"
 
     local summary
     summary=$(printf "${MSG[summary]}" \
@@ -290,8 +204,48 @@ confirm_user_inputs() {
 }
 
 # ----------------------------------------------------------------------------
-# Container update (with language support and improved error handling)
+# Container Creation Command
 # ----------------------------------------------------------------------------
+
+generate_secure_password() {
+    openssl rand -base64 32 | tr -dc 'a-zA-Z0-9!%_-#' | head -c 24
+}
+
+# NOTE: Now PASSWD_FILE is global for cleanup!
+PASSWD_FILE=""
+
+create_password_file() {
+    PASSWD_FILE=$(mktemp)
+    chmod 600 "${PASSWD_FILE}"
+    echo "${ROOT_PASSWORD}" >"${PASSWD_FILE}"
+    echo "${PASSWD_FILE}"
+}
+
+build_pct_command() {
+    create_password_file
+
+    echo "pct create ${CT_ID} ${TEMPLATE_PATH}/${TEMPLATE_FILE} \
+    --hostname ${CT_HOSTNAME} \
+    --storage ${STORAGE} \
+    --rootfs ${DISK_SIZE}G \
+    --password-stdin \
+    --features nesting=1 \
+    --unprivileged $( [[ "${UNPRIVILEGED:-0}" -eq 1 ]] && echo "1" || echo "0") \
+    --net0 name=eth0,bridge=${NET_BRIDGE},ip=${CT_IPV4}/24,gw=${GATEWAY_IPV4},ip6=${CT_IPV6}/64,gw6=${GATEWAY_IPV6} \
+    $([[ -n "${SSH_KEY_PATH-}" ]] && echo "--ssh-public-keys ${SSH_KEY_PATH}")"
+}
+
+create_container() {
+    show_message "${MSG[creating]}"
+
+    local cmd
+    cmd=$(build_pct_command)
+
+    # Execute creation command with password input via stdin
+    cat "$PASSWD_FILE" | eval "$cmd" --password-stdin
+
+    show_message "${MSG[created]}"
+}
 
 update_container() {
     show_message "${MSG[update]}"
@@ -309,54 +263,91 @@ update_container() {
 }
 
 # ----------------------------------------------------------------------------
-# Download custom files (with temp directory and permission setup)
+# Configure locales inside the container
 # ----------------------------------------------------------------------------
 
-download_custom_files() {
-    local tmpDir
-    tmpDir=$(mktemp -d)
-    trap 'rm -rf "$tmpDir"' EXIT
+setup_ct_locales() {
+    show_message "${MSG[locale_wait]}"
 
-    show_message "${MSG[download]}"
-
-    declare -A filesToDownload=(
-        ["custom-script.sh"]="https://example.com/custom-script.sh"
-        ["app-config.conf"]="https://example.com/app-config.conf"
-    )
-
-    for filename in "${!filesToDownload[@]}"; do
-        if ! wget -qO "${tmpDir}/${filename}" "${filesToDownload[$filename]}"; then
-            show_message "$(printf "${MSG[download_fail]}" "${filename}")"
-            continue
-        fi
-
-        pct push "$CT_ID" "${tmpDir}/${filename}" "/root/${filename}"
-
-        # Make scripts executable
-        [[ "$filename" == *.sh ]] && pct exec "$CT_ID" -- chmod +x "/root/${filename}"
-    done
-
-    show_message "${MSG[download_ok]}"
+    if pct exec "$CT_ID" -- bash -c '
+        set -e
+        apt-get update -qq
+        apt-get install -y locales
+        locale-gen en_US.UTF-8 de_DE.UTF-8
+        update-locale LANG=en_US.UTF-8
+    '; then
+        show_message "${MSG[locale_ok]}"
+    else
+        show_message "${MSG[locale_fail]}"
+        exit 1
+    fi
 }
 
 # ----------------------------------------------------------------------------
-# System cleanup (including variable cleanup)
+# Setup SSH key or enable temporary root password login
+# ----------------------------------------------------------------------------
+
+setup_ssh_key_or_temp() {
+    if [[ -n "$SSH_KEY_PATH" ]]; then
+        show_message "${MSG[ssh_setup]}"
+        pct exec "$CT_ID" -- mkdir -p /root/.ssh
+        pct push "$CT_ID" "$SSH_KEY_PATH" /root/.ssh/authorized_keys
+        pct exec "$CT_ID" -- chmod 600 /root/.ssh/authorized_keys
+        pct exec "$CT_ID" -- chown root:root /root/.ssh/authorized_keys
+    else
+        show_message "${MSG[ssh_temp]}"
+        pct exec "$CT_ID" -- bash -c '
+            sed -i "s/^#*PermitRootLogin.*/PermitRootLogin yes/" /etc/ssh/sshd_config
+            sed -i "s/^#*PasswordAuthentication.*/PasswordAuthentication yes/" /etc/ssh/sshd_config
+            systemctl restart ssh || systemctl restart sshd || true
+        '
+    fi
+}
+
+# ----------------------------------------------------------------------------
+# Show summary of container settings
+# ----------------------------------------------------------------------------
+
+show_summary() {
+    local sshInfo
+    [[ -n "$SSH_KEY_PATH" ]] && sshInfo="${MSG[yes]}" || sshInfo="${MSG[no]}"
+
+    local summary
+    summary=$(printf "${MSG[summary]}" \
+        "$CT_HOSTNAME" "$CT_IPV4" "$CT_IPV6" \
+        "$([[ $UNPRIVILEGED -eq 1 ]] && echo "${MSG[unpriv]}" || echo "${MSG[priv]}")" \
+        "$sshInfo")
+
+    whiptail --title "${MSG[welcome]}" --msgbox "$summary" 20 70
+}
+
+# ----------------------------------------------------------------------------
+# Cleanup function, unset variables, remove temp files and ssh keys
 # ----------------------------------------------------------------------------
 
 clean_system() {
     show_message "${MSG[cleanup]}"
 
-    # Unset all non-readonly variables
-    unset CT_HOSTNAME CT_IPV4 CT_IPV6 SSH_KEY_PATH ROOT_PASSWORD
-    unset last_octet tmpDir filename url
+    unset CT_HOSTNAME CT_IPV4 CT_IPV6 SSH_KEY_PATH ROOT_PASSWORD TEMPLATE_FILE UNPRIVILEGED last_octet tmpDir filename url
 
-    # Remove temporary password file if present
-    [[ -f "$PASSWD_FILE" ]] && rm -f "$PASSWD_FILE"
+    [[ -n "${PASSWD_FILE:-}" && -f "$PASSWD_FILE" ]] && rm -f "$PASSWD_FILE"
 
-    # Remove SSH keys from memory
-    ssh-add -D &>/dev/null
+    ssh-add -D &>/dev/null || true
 
     show_message "${MSG[cleanup_ok]}"
+}
+
+# ----------------------------------------------------------------------------
+# Prompt user for reboot and reboot container if confirmed
+# ----------------------------------------------------------------------------
+
+reboot_container_prompt() {
+    if whiptail --yesno "${MSG[reboot]}" 10 60; then
+        show_message "${MSG[rebooting]}"
+        pct reboot "$CT_ID"
+    else
+        show_message "${MSG[abort]}"
+    fi
 }
 
 # ----------------------------------------------------------------------------
@@ -384,28 +375,22 @@ run_with_progress() {
         echo 85
         setup_ssh_key_or_temp
         echo 95
-        download_custom_files
-        echo 100
-        clean_system
+        git git_clone_dotfiles
+        echo 100        
     } | whiptail --title "Container Creation" --gauge "${MSG[creating]}" 12 60 0
 }
 
 # ----------------------------------------------------------------------------
-# Main function: workflow control
+# Main function
 # ----------------------------------------------------------------------------
 
 main() {
-    check_root_privileges
-    set_language
+    init_environment
     show_message "${MSG[welcome]}"
     run_with_progress
     show_summary
-    unset_variables
+    clean_system
     reboot_container_prompt
 }
 
 main "$@"
-
-# Todo:
-# Die Sprachverwaltung kann für Übersichtlichkeit in eine separate Datei ausgelagert werden (z.B. translation.func),
-# indem die Funktion load_translations und das Array MSG ausgelagert und im Hauptskript per source eingebunden werden.
