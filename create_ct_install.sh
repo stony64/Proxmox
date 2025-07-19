@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 ###############################################################################
 # Proxmox LXC Container Creator
-# Version:    2.7.3
+# Version:    2.7.4
 # Datum:      2025-07-20
 #
 # Beschreibung:
@@ -12,6 +12,7 @@
 #     - Validierten Eingaben für Hostname, Ressourcen etc.
 #     - Optionaler SSH-Key-Integration per Kommentar-Suche
 #     - Logging, Sicherheitsmechanismen und automatischem CT-ID Scan
+#     - Optionaler Hostname-Übergabe per Kommandozeile (--hostname)
 #
 ###############################################################################
 
@@ -26,7 +27,7 @@ source "$(dirname "$0")/translation.func"
 load_translations
 
 ################################################################################
-# 2 – Konfiguration
+# 2 – Konfiguration & globale Variablen
 ################################################################################
 
 readonly STORAGE="FP1000GB"
@@ -50,23 +51,28 @@ OSTEMPLATE=""
 OSType=""
 SSH_PUBKEY=""
 LAPTOP_KEY_COMMENT=""
+CT_IPV4=""
+CT_IPV6=""
+
+# Übernahmewert für Hostname per Parameter
+PARAM_HOSTNAME=""
 
 ################################################################################
-# 3 – Hilfs- & Loggingfunktionen
+# 3 – Logging- & Hilfsfunktionen
 ################################################################################
 
-### Logging
-log()            { echo "$1" | tee -a "$LOGFILE"; }
-log_success()    { log "✅ $1"; }
-log_error()      { log "❌ $1"; }
+# Standardisiertes Logging ohne Emojis
+log()            { echo "[INFO] $1" | tee -a "$LOGFILE"; }
+log_success()    { echo "[OK] $1" | tee -a "$LOGFILE"; }
+log_error()      { echo "[ERROR] $1" | tee -a "$LOGFILE"; }
 exit_with_log()  { log_error "$1"; exit 1; }
 
-### Einheitlicher Whiptail-Titel pro CT
+# Whiptail-Titelformatierung
 dialog_title() {
     echo "CT ${CT_ID} – $1"
 }
 
-### Ganzzahlige Eingabe mit Validierung
+# Validierte Eingabe integer
 request_positive_integer() {
     local prompt="$1" default="$2" result
     while true; do
@@ -80,11 +86,12 @@ request_positive_integer() {
     done
 }
 
+# Validiert das letzte Oktett für IPv4
 validate_ip_octet() {
     [[ "$1" =~ ^([0-9]{1,2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])$ ]] && return 0 || return 1
 }
 
-### Dry Run: Konfigurationsvorschau anzeigen
+# Dry Run Vorschau ausgeben
 dry_run_preview() {
     log "${MSG[preview]}"
     log "${MSG[ctid_assigned]} $CT_ID"
@@ -99,27 +106,47 @@ dry_run_preview() {
 }
 
 ################################################################################
-# 4 – Interaktive Eingaben
+# 4 – CLI-Argumente & Parameter Mapping
 ################################################################################
 
-### Root-Rechte prüfen
+parse_args() {
+    local arg
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --hostname)
+                shift
+                PARAM_HOSTNAME="$1"
+                log "Hostname übergeben: $PARAM_HOSTNAME"
+                ;;
+            *)
+                # weitere Parameter bei Bedarf hier ergänzen
+                ;;
+        esac
+        shift
+    done
+}
+
+################################################################################
+# 5 – Interaktive Benutzereingaben
+################################################################################
+
+# Root-Rechte prüfen
 check_root() {
     [[ $EUID -ne 0 ]] && exit_with_log "${MSG[root_required]}"
     log "${MSG[root_ok]}"
 }
 
-### Container-Modus auswählen
+# Modus auswählbar (optional erweiterbar)
 select_mode() {
     local modus
     modus=$(whiptail --title "${MSG[mode_title]}" \
         --menu "${MSG[choose_type]}" 12 50 2 \
         "${MSG[mode_single]}" "${MSG[desc_single]}" \
         "${MSG[mode_cancel]}" "${MSG[abort]}" 3>&1 1>&2 2>&3) || exit_with_log "${MSG[abort]}"
-    
     [[ "$modus" == "${MSG[mode_single]}" ]] && log "${MSG[mode_selected_single]}" || exit_with_log "${MSG[abort]}"
 }
 
-### Nächste freie CT-ID ermitteln
+# freie Container-ID bestimmen
 find_next_ctid() {
     local used_ids
     used_ids=$(pct list | awk 'NR>1 {print $1}' | sort -n)
@@ -128,8 +155,13 @@ find_next_ctid() {
     log "${MSG[ctid_assigned]} $CT_ID"
 }
 
-### Hostname eingeben
+# Hostname abfragen (bzw. per Parameter übernehmen)
 input_hostname() {
+    if [[ -n "$PARAM_HOSTNAME" ]]; then
+        CT_HOSTNAME="$PARAM_HOSTNAME"
+        log "Verwende übergebenen Hostname: $CT_HOSTNAME"
+        return
+    fi
     while true; do
         CT_HOSTNAME=$(whiptail --title "$(dialog_title Hostname)" \
             --inputbox "${MSG[hostname]}" 10 60 "" 3>&1 1>&2 2>&3) || exit_with_log "${MSG[abort]}"
@@ -146,7 +178,7 @@ input_hostname() {
     log "${MSG[hostname]} $CT_HOSTNAME"
 }
 
-### Passwort abfragen
+# Passwort abfragen
 input_password() {
     while true; do
         CT_PASSWORD=$(whiptail --title "$(dialog_title Passwort)" \
@@ -158,10 +190,10 @@ input_password() {
         fi
         break
     done
-    log "${MSG[password]} (Länge: ${#CT_PASSWORD})"
+    log "${MSG[password]} wurde erfolgreich gesetzt."
 }
 
-### Template auswählen
+# Template-Auswahl
 select_template() {
     log "${MSG[template_select]} $TEMPLATE_PATH"
     mapfile -t templates < <(cd "$TEMPLATE_PATH" && ls -1 *-standard_*.tar.zst 2>/dev/null || true)
@@ -174,7 +206,7 @@ select_template() {
     log "$(printf "${MSG[template_chosen]}" "$TEMPLATE_FILE")"
 }
 
-### OS-Typ anhand Dateiname bestimmen
+# OS-Typ ableiten
 detect_ostype_from_template() {
     if [[ "$TEMPLATE_FILE" =~ ^(debian|ubuntu|centos|arch|alpine)- ]]; then
         OSType="${BASH_REMATCH[1]}"
@@ -184,33 +216,31 @@ detect_ostype_from_template() {
     fi
 }
 
-### Root-FS-Größe setzen
+# Root-FS-Größe abfragen
 input_rootfs_size() {
     ROOTFS_SIZE=$(request_positive_integer "${MSG[rootfs]}" "2") || exit_with_log "${MSG[abort]}"
     log "${MSG[rootfs]}: $ROOTFS_SIZE GB"
 }
 
-### CPU & RAM setzen
+# Ressourcen abfragen
 input_resources() {
     CT_CORES=$(request_positive_integer "${MSG[cores]}" "1") || exit_with_log "${MSG[abort]}"
     CT_MEMORY=$(request_positive_integer "${MSG[memory]}" "512") || exit_with_log "${MSG[abort]}"
     log "${MSG[cores]}: $CT_CORES, ${MSG[memory]}: $CT_MEMORY MB"
 }
 
-### Letztes Oktett abfragen und IP-Adressen zusammensetzen
+# Letztes Oktett für statische IP abfragen und Adressen bauen
 get_container_ip() {
     local last_octet=""
     while true; do
         last_octet=$(whiptail --title "$(dialog_title IP-Adresse)" \
             --inputbox "${MSG[octet]}" 10 50 "" 3>&1 1>&2 2>&3) || exit_with_log "${MSG[abort]}"
-        
         if validate_ip_octet "$last_octet"; then
             break
         else
             whiptail --title "$(dialog_title Fehler)" --msgbox "${MSG[input_invalid]}" 8 60
         fi
     done
-
     CT_IPV4="${BASE_IPV4}${last_octet}"
     CT_IPV6="${BASE_IPV6}${last_octet}"
     log "Statische IPv4: $CT_IPV4"
@@ -218,10 +248,10 @@ get_container_ip() {
 }
 
 ################################################################################
-# 5 – SSH Key Handling
+# 6 – SSH Key Management
 ################################################################################
 
-### SSH-Kommentar vom Benutzer abfragen
+# SSH-Kommentar abfragen
 ask_for_laptop_key_comment() {
     LAPTOP_KEY_COMMENT=$(whiptail --title "$(dialog_title SSH)" \
         --inputbox "${MSG[ssh_comment_prompt]}" 10 70 "" 3>&1 1>&2 2>&3) || exit_with_log "${MSG[abort]}"
@@ -229,7 +259,7 @@ ask_for_laptop_key_comment() {
     log "${MSG[ssh_lookup]}: $LAPTOP_KEY_COMMENT"
 }
 
-### SSH-Key anhand Kommentar suchen
+# SSH-Key durch Kommentar suchen und Datei erzeugen
 extract_laptop_key() {
     local authfile="/root/.ssh/authorized_keys"
     [[ ! -f "$authfile" ]] && exit_with_log "authorized_keys nicht gefunden unter $authfile"
@@ -246,7 +276,7 @@ extract_laptop_key() {
     fi
 }
 
-### SSH-Key vor Start ins RootFS kopieren
+# SSH-Key in Container vorbereiten
 prepare_ssh_key_prestart() {
     if [[ -n "$SSH_PUBKEY" && -f "$SSH_PUBKEY" ]]; then
         local ssh_dir="/var/lib/lxc/$CT_ID/rootfs/root/.ssh"
@@ -259,7 +289,7 @@ prepare_ssh_key_prestart() {
     fi
 }
 
-### SSH-Key nach Start final einrichten
+# SSH-Key nach dem Start finalisieren
 finalize_ssh_key_after_start() {
     if [[ -n "$SSH_PUBKEY" && -f "$SSH_PUBKEY" ]]; then
         pct exec "$CT_ID" -- bash -c '
@@ -280,10 +310,10 @@ finalize_ssh_key_after_start() {
 }
 
 ################################################################################
-# 6 – Container-Erstellung
+# 7 – Container-Erstellung und Konfigurations-Schritte
 ################################################################################
 
-### LXC-Container erstellen & starten
+# LXC-Container erstellen und starten
 create_container() {
     log "${MSG[creating]}"
     pct create "$CT_ID" "$OSTEMPLATE" \
@@ -302,13 +332,11 @@ create_container() {
     log_success "${MSG[created]} (CT-ID: $CT_ID)"
     pct start "$CT_ID"
     log_success "${MSG[started]} (CT-ID: $CT_ID)"
+    pct set "$CT_ID" --tags "$OSType"
+    log "Tag gesetzt: $OSType"
 }
 
-################################################################################
-# 7 – Container-Wartung / Systemaktualisierung
-################################################################################
-
-### Systemlocales und Zeitzone im Container konfigurieren (de_DE.UTF-8 als Standard, Europe/Berlin)
+# Systemlocales und Zeitzone im Container konfigurieren
 configure_locales() {
     log "${MSG[locales]}"
     log "${MSG[timezone]}"
@@ -326,7 +354,7 @@ configure_locales() {
     fi
 }
 
-### Container per APT aktualisieren
+# Container per APT aktualisieren
 update_container() {
     log "${MSG[update]}"
     if pct exec "$CT_ID" -- bash -c '
@@ -343,11 +371,32 @@ update_container() {
     fi
 }
 
+# Dotfiles im Container klonen oder aktualisieren
+clone_dotfiles_in_container() {
+    log "${MSG[dotfiles]}"
+    if pct exec "$CT_ID" -- bash -eu <<'EOF'
+apt-get update -qq
+apt-get install -y -qq git
+if [ ! -d /root/dotfiles/.git ]; then
+    git clone https://github.com/stony64/dotfiles.git /root/dotfiles
+else
+    cd /root/dotfiles && git pull
+fi
+EOF
+    then
+        log_success "${MSG[dotfiles_ok]}"
+    else
+        log_error "${MSG[dotfiles_fail]}"
+        exit 1
+    fi
+}
+
 ################################################################################
 # 8 – Hauptprogramm
 ################################################################################
 
 main() {
+    parse_args "$@"
     check_root
     select_mode
     find_next_ctid
@@ -366,6 +415,7 @@ main() {
     finalize_ssh_key_after_start
     configure_locales
     update_container
+    clone_dotfiles_in_container
 }
 
 main "$@"

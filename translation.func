@@ -5,15 +5,14 @@
 # Datum:      2025-07-20
 #
 # Beschreibung:
-#   Initialisiert das Sprachsystem für das Bash-Hauptskript zur Container-Erstellung.
-#   Unterstützte Sprachen: Deutsch (Standard), Englisch.
-#   Alle Texte werden im assoziativen Array MSG[] bereitgestellt.
-#
+#   Initialisiert das mehrsprachige Nachrichtensystem (MSG[]) für das
+#   Bash-Skript zur automatisierten LXC-Erstellung.
+#   Unterstützte Sprachen: Deutsch, Englisch.
 ###############################################################################
 
 declare -A MSG
 
-# Sprachinitialisierung – fragt interaktiv ab oder wählt Fallback.
+### Lade Sprache: Auswahl über whiptail oder Fallback
 load_translations() {
     if ! command -v whiptail &>/dev/null; then
         echo "WARNUNG: 'whiptail' fehlt – Standard: Englisch" >&2
@@ -27,13 +26,12 @@ load_translations() {
         return
     fi
 
-    local lang status
+    local lang
     lang=$(whiptail --menu "Sprache wählen / Choose language:" 12 40 2 \
         "de" "Deutsch" \
         "en" "English" 3>&1 1>&2 2>&3)
-    status=$?
 
-    if [[ $status -ne 0 || -z "$lang" ]]; then
+    if [[ $? -ne 0 || -z "$lang" ]]; then
         whiptail --title "Abbruch / Cancelled" \
             --msgbox "Keine Auswahl – Standard: Englisch." 8 60 || echo "Fallback: Englisch aktiviert."
         set_default_english
@@ -49,98 +47,156 @@ load_translations() {
     fi
 }
 
-# ========================================
-# Deutsch
+################################################################################
+# 🔵 Deutsch
+################################################################################
 set_default_german() {
+
+    ### Allgemeines & Fehler
     MSG[abort]="Vorgang abgebrochen."
     MSG[input_empty]="Eingabe darf nicht leer sein."
     MSG[input_invalid]="Ungültige Eingabe. Bitte erneut versuchen."
+
+    ### Root-Check
     MSG[root_required]="Dieses Skript muss als root ausgeführt werden."
     MSG[root_ok]="Root-Rechte bestätigt."
+
+    ### Modus-Auswahl
     MSG[mode_title]="Moduswahl"
     MSG[choose_type]="Bitte Container-Modus wählen:"
     MSG[mode_single]="Einzeln"
     MSG[mode_cancel]="Abbrechen"
     MSG[desc_single]="Einen einzelnen Container anlegen"
     MSG[mode_selected_single]="Einzelmodus gewählt."
+
+    ### Container-ID & Hostname
     MSG[ctid_assigned]="Vergebene Container-ID:"
     MSG[ctid_none]="Keine freie CT-ID gefunden!"
     MSG[hostname]="Hostname für den Container eingeben:"
     MSG[password]="Root-Passwort (min. 8 Zeichen):"
+
+    ### Template & OS
     MSG[template_select]="Template auswählen:"
     MSG[template_none]="Keine Template-Dateien gefunden!"
     MSG[template_chosen]="Verwendetes Template:\n%s"
     MSG[ostype_detected]="OS-Typ erkannt:"
     MSG[ostype_unknown]="Fehler: OS-Typ im Template-Dateinamen nicht erkannt."
+
+    ### Ressourcen
     MSG[rootfs]="RootFS-Größe (GB)"
     MSG[cores]="CPU-Kerne"
     MSG[memory]="Arbeitsspeicher (MB)"
+
+    ### Netzwerk / IP
+    MSG[octet]="Bitte die letzte Stelle der IPv4-Adresse eingeben (z. B. 42):"
+
+    ### Container-Erstellung
     MSG[creating]="Container wird erstellt..."
     MSG[created]="Container wurde erfolgreich erstellt."
     MSG[started]="Container wurde gestartet."
-    MSG[update]="Führe apt-Update und Systembereitstellung im Container aus..."
-    MSG[update_ok]="Container erfolgreich aktualisiert."
-    MSG[update_fail]="Update im Container fehlgeschlagen!"
+
+    ### SSH
+    MSG[ssh_comment_prompt]="Wie lautet der Kommentar des Public-Keys (z. B. user@laptop)?"
+    MSG[ssh_lookup]="Suche SSH-Key mit Kommentar"
+    MSG[ssh_found]="SSH-Key wurde erkannt und übernommen."
+    MSG[ssh_not_found]="Kein passender SSH-Key mit Kommentar gefunden."
+    MSG[ssh_setup]="SSH-Key wurde erfolgreich im Container hinterlegt."
+    MSG[ssh_temp]="Kein gültiger SSH-Key – Root-Login per Passwort aktiv."
+
+    ### Update / System
     MSG[locales]="System-Sprachumgebung (Locales: de_DE und en_US) wird im Container eingerichtet..."
     MSG[locales_ok]="Locales wurden erfolgreich eingerichtet (Standard: de_DE.UTF-8)."
     MSG[locales_fail]="Locale-Konfiguration im Container fehlgeschlagen!"
     MSG[timezone]="Setze Systemzeitzone auf Europe/Berlin im Container..."
     MSG[timezone_ok]="Zeitzone erfolgreich gesetzt: Europe/Berlin."
     MSG[timezone_fail]="Fehler beim Setzen der Zeitzone im Container."
+
+    MSG[update]="Führe apt-Update und Systembereitstellung im Container aus..."
+    MSG[update_ok]="Container erfolgreich aktualisiert."
+    MSG[update_fail]="Update im Container fehlgeschlagen!"
+
+    ### Dotfiles
+    MSG[dotfiles]="Dotfiles werden im Container geklont..."
+    MSG[dotfiles_ok]="Dotfiles wurden erfolgreich aktualisiert."
+    MSG[dotfiles_fail]="Fehler beim Klonen der Dotfiles im Container!"
+
+    ### Vorschau / Dry-Run
     MSG[preview]="[Vorschau / Dry Run] – Kein Container wird erstellt."
-    MSG[ssh_setup]="SSH-Key wurde erfolgreich im Container hinterlegt."
-    MSG[ssh_temp]="Kein gültiger SSH-Key – Root-Login per Passwort aktiv."
-    MSG[ssh_found]="SSH-Key wurde erkannt und übernommen."
-    MSG[ssh_not_found]="Kein passender SSH-Key mit Kommentar gefunden."
-    MSG[ssh_comment_prompt]="Wie lautet der Kommentar des Public-Keys (z. B. user@laptop)?"
-    MSG[ssh_lookup]="Suche SSH-Key mit Kommentar"
-    MSG[octet]="Bitte die letzte Stelle der IPv4-Adresse eingeben (nur Zahl, z. B. 42):"
 }
 
-# ========================================
-# Englisch
+################################################################################
+# 🔴 Englisch
+################################################################################
 set_default_english() {
+
+    ### General
     MSG[abort]="Operation aborted."
     MSG[input_empty]="Input must not be empty."
     MSG[input_invalid]="Invalid input. Please try again."
+
+    ### Root check
     MSG[root_required]="This script must be run as root."
     MSG[root_ok]="Root access confirmed."
+
+    ### Mode selection
     MSG[mode_title]="Mode selection"
     MSG[choose_type]="Select container mode:"
     MSG[mode_single]="Single"
     MSG[mode_cancel]="Cancel"
     MSG[desc_single]="Create a single container"
     MSG[mode_selected_single]="Single mode selected."
+
+    ### Container ID & Hostname
     MSG[ctid_assigned]="Assigned CT-ID:"
     MSG[ctid_none]="No free CT-ID found!"
     MSG[hostname]="Enter container hostname:"
     MSG[password]="Enter root password (min. 8 characters):"
+
+    ### Template / OS
     MSG[template_select]="Select template:"
     MSG[template_none]="No template files found!"
     MSG[template_chosen]="Selected template:\n%s"
     MSG[ostype_detected]="OS type detected:"
     MSG[ostype_unknown]="Error: OS type could not be determined from filename."
+
+    ### Resources
     MSG[rootfs]="RootFS size (GB)"
     MSG[cores]="CPU cores"
     MSG[memory]="Memory (MB)"
+
+    ### Network / IP
+    MSG[octet]="Please enter the last octet of the IPv4 address (e.g. 42):"
+
+    ### Container creation state
     MSG[creating]="Creating container..."
     MSG[created]="Container created successfully."
     MSG[started]="Container has been started."
-    MSG[update]="Running apt update and system provisioning in container..."
-    MSG[update_ok]="Container successfully updated."
-    MSG[update_fail]="Update failed inside container!"
+
+    ### SSH handling
+    MSG[ssh_comment_prompt]="Enter comment of your SSH Public Key (e.g. user@laptop):"
+    MSG[ssh_lookup]="Looking for SSH key with comment"
+    MSG[ssh_found]="SSH key found and applied."
+    MSG[ssh_not_found]="No matching SSH key with comment found."
+    MSG[ssh_setup]="SSH key was successfully added to the container."
+    MSG[ssh_temp]="No valid SSH key provided – root login via password remains active."
+
+    ### System / locale / update
     MSG[locales]="Configuring system locales (de_DE and en_US) in container..."
     MSG[locales_ok]="Locales successfully configured (default: de_DE.UTF-8)."
-    MSG[locales_fail]="Locale configuration in container failed."
+    MSG[locales_fail]="Locale configuration in container failed!"
     MSG[timezone]="Setting system timezone to Europe/Berlin in container..."
     MSG[timezone_ok]="Timezone successfully set to Europe/Berlin."
     MSG[timezone_fail]="Setting timezone in container failed."
+
+    MSG[update]="Running apt update and system provisioning in container..."
+    MSG[update_ok]="Container successfully updated."
+    MSG[update_fail]="Update failed inside container!"
+
+    ### Dotfiles
+    MSG[dotfiles]="Cloning dotfiles inside the container..."
+    MSG[dotfiles_ok]="Dotfiles updated successfully."
+    MSG[dotfiles_fail]="Error cloning dotfiles inside the container!"
+
+    ### Preview mode
     MSG[preview]="[Preview / Dry Run] – No container will be created."
-    MSG[ssh_setup]="SSH key was successfully added to the container."
-    MSG[ssh_temp]="No valid SSH key provided – root login via password remains active."
-    MSG[ssh_found]="SSH key found and applied."
-    MSG[ssh_not_found]="No matching SSH key with comment found."
-    MSG[ssh_comment_prompt]="Enter comment of your SSH Public Key (e.g. user@laptop):"
-    MSG[ssh_lookup]="Looking for SSH key with comment"
-    MSG[octet]="Please enter the last octet of the IPv4 address (e.g. 42):"
 }
