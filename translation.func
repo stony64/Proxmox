@@ -94,6 +94,7 @@ set_default_german() {
     MSG[ssh_not_found]="Kein passender SSH-Key mit Kommentar gefunden."
     MSG[ssh_comment_prompt]="Wie lautet der Kommentar des Public-Keys (z. B. user@laptop)?"
     MSG[ssh_lookup]="Suche SSH-Key mit Kommentar"
+    MSG[octet]="Bitte die letzte Stelle der IPv4-Adresse eingeben (nur Zahl, z. B. 42):"
 }
 
 # ========================================
@@ -141,4 +142,5 @@ set_default_english() {
     MSG[ssh_not_found]="No matching SSH key with comment found."
     MSG[ssh_comment_prompt]="Enter comment of your SSH Public Key (e.g. user@laptop):"
     MSG[ssh_lookup]="Looking for SSH key with comment"
+    MSG[octet]="Please enter the last octet of the IPv4 address (e.g. 42):"
 }
