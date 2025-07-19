@@ -31,8 +31,13 @@ load_translations
 
 readonly STORAGE="FP1000GB"
 readonly TEMPLATE_PATH="/mnt/FP1000GB/template/cache"
-readonly NETWORK_BRIDGE="vmbr2"
 readonly LOGFILE="/opt/scripts/proxmox/lxc_create_$(date +'%Y%m%d_%H%M%S').log"
+
+readonly NET_BRIDGE="vmbr2"
+readonly BASE_IPV4="192.168.10."
+readonly BASE_IPV6="fd00:1234:abcd:10::"
+readonly GATEWAY_IPV4="192.168.10.1"
+readonly GATEWAY_IPV6="fd00:1234:abcd:10:3ea6:2fff:fe65:8fa7"
 
 CT_ID=""
 CT_HOSTNAME=""
@@ -73,6 +78,10 @@ request_positive_integer() {
         fi
         whiptail --title "$(dialog_title Fehler)" --msgbox "${MSG[input_invalid]}" 8 60
     done
+}
+
+validate_ip_octet() {
+    [[ "$1" =~ ^([0-9]{1,2}|1[0-9]{2}|2[0-4][0-9]|25[0-5])$ ]] && return 0 || return 1
 }
 
 ### Dry Run: Konfigurationsvorschau anzeigen
@@ -188,6 +197,26 @@ input_resources() {
     log "${MSG[cores]}: $CT_CORES, ${MSG[memory]}: $CT_MEMORY MB"
 }
 
+### Letztes Oktett abfragen und IP-Adressen zusammensetzen
+get_container_ip() {
+    local last_octet=""
+    while true; do
+        last_octet=$(whiptail --title "$(dialog_title IP-Adresse)" \
+            --inputbox "${MSG[octet]}" 10 50 "" 3>&1 1>&2 2>&3) || exit_with_log "${MSG[abort]}"
+        
+        if validate_ip_octet "$last_octet"; then
+            break
+        else
+            whiptail --title "$(dialog_title Fehler)" --msgbox "${MSG[input_invalid]}" 8 60
+        fi
+    done
+
+    CT_IPV4="${BASE_IPV4}${last_octet}"
+    CT_IPV6="${BASE_IPV6}${last_octet}"
+    log "Statische IPv4: $CT_IPV4"
+    log "Statische IPv6: $CT_IPV6"
+}
+
 ################################################################################
 # 5 – SSH Key Handling
 ################################################################################
@@ -265,7 +294,7 @@ create_container() {
         --swap 512 \
         --features nesting=1 \
         --unprivileged 0 \
-        --net0 "name=eth0,bridge=$NETWORK_BRIDGE,ip=dhcp" \
+        --net0 "name=eth0,bridge=${NET_BRIDGE},ip=${CT_IPV4}/24,gw=${GATEWAY_IPV4},ip6=${CT_IPV6}/64,gw6=${GATEWAY_IPV6}" \
         --rootfs "$STORAGE:$ROOTFS_SIZE" \
         --password "$CT_PASSWORD" \
         --ostype "$OSType" \
@@ -328,6 +357,7 @@ main() {
     detect_ostype_from_template
     input_rootfs_size
     input_resources
+    get_container_ip
     ask_for_laptop_key_comment
     extract_laptop_key
     [[ "${1:-}" == "--dry-run" ]] && dry_run_preview
