@@ -307,7 +307,7 @@ update_container() {
     if pct exec "$CT_ID" -- bash -c '
         DEBIAN_FRONTEND=noninteractive
         apt-get update -qq &&
-        # apt-get upgrade -y -qq &&
+        apt-get upgrade -y -qq &&
         apt-get autoremove -y -qq &&
         apt-get clean -qq
     '; then
