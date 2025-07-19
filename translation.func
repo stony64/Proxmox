@@ -1,94 +1,172 @@
 #!/usr/bin/env bash
-####################################################
-# translation.func – Sprachverwaltung (EN/DE)
-# Wird von Hauptscript geladen (source)
-####################################################
+###############################################################################
+# translation.func – Mehrsprachigkeit für Proxmox LXC-Container-Ersteller
+# Version:    2.2
+# Datum:      2025-07-19
+#
+# Beschreibung:
+#   Initialisiert das Sprachsystem für das Bash-Hauptskript zur Container-Erstellung.
+#   Unterstützte Sprachen: Deutsch (Standard), Englisch.
+#   Alle Texte werden im assoziativen Array MSG[] bereitgestellt.
+#
+# Einbindung im Hauptskript:
+#   source "$(dirname "$0")/translation.func"
+#   load_translations
+#
+# Hinweise:
+#   - Falls keine Sprache gewählt wird oder whiptail fehlt: Standard Englisch.
+###############################################################################
 
 declare -A MSG
 
+# Sprachinitialisierung – fragt interaktiv ab oder wählt Fallback.
 load_translations() {
-    local lang
+    if ! command -v whiptail &>/dev/null; then
+        echo "WARNUNG: 'whiptail' fehlt – Standard: Englisch" >&2
+        set_default_english
+        return
+    fi
+
+    if [[ ! -t 1 ]]; then
+        echo "WARNUNG: Kein Terminal erkannt – Standard: Englisch" >&2
+        set_default_english
+        return
+    fi
+
+    local lang status
     lang=$(whiptail --menu "Sprache wählen / Choose language:" 12 40 2 \
         "de" "Deutsch" \
         "en" "English" 3>&1 1>&2 2>&3)
-    [[ -z "$lang" ]] && lang="en"
+    status=$?
+
+    if [[ $status -ne 0 || -z "$lang" ]]; then
+        whiptail --title "Abbruch / Cancelled" \
+            --msgbox "Keine Auswahl – Standard: Englisch." 8 60 || echo "Fallback: Englisch aktiviert."
+        set_default_english
+        return
+    fi
+
     export LANGCODE="$lang"
 
     if [[ "$lang" == "de" ]]; then
-        MSG[welcome]="Willkommen zum LXC-Erstell-Skript!"
-        MSG[choose_type]="Bitte Container-Typ wählen:"
-        MSG[priv]="Privilegierter Container (weniger sicher)"
-        MSG[unpriv]="Unprivilegierter Container (empfohlen, sicherer)"
-        MSG[hostname]="Geben Sie den Hostnamen ein (nur Buchstaben, Zahlen, Bindestrich):"
-        MSG[password]="Geben Sie das Root-Passwort ein (mindestens 8 Zeichen):"
-        MSG[octet]="Geben Sie das letzte Oktett der IPv4-Adresse ein (z. B. 25):"
-        MSG[ssh_add]="Möchten Sie einen SSH-Key (*.pub) für root hinzufügen?"
-        MSG[ssh_prompt]="Pfad zum SSH-Public-Key (.pub) eingeben:"
-        MSG[ssh_invalid]="Ungültiger oder nicht existierender SSH-Key!"
-        MSG[summary]="Zusammenfassung:\n\nHostname: %s\nIPv4: %s\nIPv6: %s\nTyp: %s\nSSH-Key: %s\n\nSind diese Angaben korrekt?"
-        MSG[template_select]="Template auswählen:"
-        MSG[template_none]="Keine Template-Dateien gefunden!"
-        MSG[template_chosen]="Verwendetes Template:\n%s"
-        MSG[creating]="Container wird erstellt..."
-        MSG[created]="Container wurde erstellt."
-        MSG[ssh_setup]="SSH-Key wurde erfolgreich im Container hinterlegt."
-        MSG[ssh_temp]="Kein gültiger SSH-Key angegeben. Temporärer Root-Login via Passwort wird aktiviert."
-        MSG[locale_wait]="Warte, bis der Container startet..."
-        MSG[locale_ok]="Locales wurden erfolgreich konfiguriert."
-        MSG[locale_fail]="Fehler beim Konfigurieren der Locales."
-        MSG[update]="Container wird aktualisiert..."
-        MSG[update_ok]="Container wurde erfolgreich aktualisiert."
-        MSG[update_fail]="Fehler beim Aktualisieren des Containers."
-        MSG[download]="Lade benutzerdefinierte Dateien herunter..."
-        MSG[download_ok]="Alle Dateien wurden erfolgreich übertragen."
-        MSG[download_fail]="Fehler beim Herunterladen von %s"
-        MSG[cleanup]="Systembereinigung wird durchgeführt..."
-        MSG[cleanup_ok]="System wurde erfolgreich bereinigt."
-        MSG[cleanup_fail]="Fehler bei der Systembereinigung."
-        MSG[reboot]="Soll der Container jetzt neu gestartet werden?"
-        MSG[rebooting]="Container wird neu gestartet..."
-        MSG[abort]="Vorgang abgebrochen."
-        MSG[input_empty]="Eingabe darf nicht leer sein."
-        MSG[input_invalid]="Ungültige Eingabe. Bitte erneut versuchen."
-        MSG[yes]="Ja"
-        MSG[no]="Nein"
+        set_default_german
     else
-        MSG[welcome]="Welcome to the LXC creation script!"
-        MSG[choose_type]="Please select container type:"
-        MSG[priv]="Privileged container (less secure)"
-        MSG[unpriv]="Unprivileged container (recommended, more secure)"
-        MSG[hostname]="Enter hostname (letters, numbers, dash only):"
-        MSG[password]="Enter root password (min. 8 chars):"
-        MSG[octet]="Enter last octet of IPv4 address (e.g. 25):"
-        MSG[ssh_add]="Do you want to add an SSH key (*.pub) for root?"
-        MSG[ssh_prompt]="Enter path to SSH public key (.pub):"
-        MSG[ssh_invalid]="Invalid or non-existent SSH key!"
-        MSG[summary]="Summary:\n\nHostname: %s\nIPv4: %s\nIPv6: %s\nType: %s\nSSH-Key: %s\n\nAre these values correct?"
-        MSG[template_select]="Select template:"
-        MSG[template_none]="No template files found!"
-        MSG[template_chosen]="Selected template:\n%s"
-        MSG[creating]="Creating container..."
-        MSG[created]="Container created."
-        MSG[ssh_setup]="SSH key successfully added to container."
-        MSG[ssh_temp]="No valid SSH key provided. Temporary root login via password will be enabled."
-        MSG[locale_wait]="Waiting for container to start..."
-        MSG[locale_ok]="Locales successfully configured."
-        MSG[locale_fail]="Failed to configure locales."
-        MSG[update]="Updating container..."
-        MSG[update_ok]="Container updated successfully."
-        MSG[update_fail]="Failed to update container."
-        MSG[download]="Downloading custom files..."
-        MSG[download_ok]="All files transferred successfully."
-        MSG[download_fail]="Failed to download %s"
-        MSG[cleanup]="Cleaning up system..."
-        MSG[cleanup_ok]="System cleanup successful."
-        MSG[cleanup_fail]="System cleanup failed."
-        MSG[reboot]="Do you want to reboot the container now?"
-        MSG[rebooting]="Rebooting container..."
-        MSG[abort]="Operation aborted."
-        MSG[input_empty]="Input must not be empty."
-        MSG[input_invalid]="Invalid input. Please try again."
-        MSG[yes]="Yes"
-        MSG[no]="No"
+        set_default_english
     fi
+}
+
+# 🇩🇪 Standardwerte Deutsch
+set_default_german() {
+    # Allgemeine Eingabe & Abbruch
+    MSG[abort]="Vorgang abgebrochen."
+    MSG[input_empty]="Eingabe darf nicht leer sein."
+    MSG[input_invalid]="Ungültige Eingabe. Bitte erneut versuchen."
+
+    # Root-Prüfung
+    MSG[root_required]="Dieses Skript muss als root ausgeführt werden."
+    MSG[root_ok]="Root-Rechte bestätigt."
+
+    # Moduswahl-Menü
+    MSG[mode_title]="Moduswahl"
+    MSG[choose_type]="Bitte Container-Modus wählen:"
+    MSG[mode_single]="Einzeln"
+    MSG[mode_cancel]="Abbrechen"
+    MSG[desc_single]="Einen einzelnen Container anlegen"
+    MSG[mode_selected_single]="Einzelmodus gewählt."
+
+    # CT-ID Auswahl
+    MSG[ctid_assigned]="Vergebene Container-ID:"
+    MSG[ctid_none]="Keine freie CT-ID gefunden!"
+
+    # Hostname & Passwort
+    MSG[hostname]="Hostname für den Container eingeben:"
+    MSG[password]="Root-Passwort (min. 8 Zeichen):"
+
+    # Template-Auswahl
+    MSG[template_select]="Template auswählen:"
+    MSG[template_none]="Keine Template-Dateien gefunden!"
+    MSG[template_chosen]="Verwendetes Template:\n%s"
+
+    # OS-Erkennung
+    MSG[ostype_detected]="OS-Typ erkannt:"
+    MSG[ostype_unknown]="Fehler: OS-Typ im Template-Dateinamen nicht erkannt."
+
+    # Ressourcen
+    MSG[rootfs]="RootFS-Größe (GB)"
+    MSG[cores]="CPU-Kerne"
+    MSG[memory]="Arbeitsspeicher (MB)"
+
+    # Container-Status
+    MSG[creating]="Container wird erstellt..."
+    MSG[created]="Container wurde erfolgreich erstellt."
+    MSG[started]="Container wurde gestartet."
+
+    # Vorschau / Dry-Run
+    MSG[preview]="[Vorschau / Dry Run] – Kein Container wird erstellt."
+
+    # SSH Key-Integration
+    MSG[ssh_setup]="SSH-Key wurde erfolgreich im Container hinterlegt."
+    MSG[ssh_temp]="Kein gültiger SSH-Key – Root-Login per Passwort aktiv."
+    MSG[ssh_found]="SSH-Key wurde erkannt und übernommen."
+    MSG[ssh_not_found]="Kein passender SSH-Key mit Kommentar gefunden."
+    MSG[ssh_comment_prompt]="Wie lautet der Kommentar des Public-Keys (z. B. user@laptop)?"
+    MSG[ssh_lookup]="Suche SSH-Key mit Kommentar"
+}
+
+# 🇬🇧 Standardwerte Englisch
+set_default_english() {
+    # General input & abort
+    MSG[abort]="Operation aborted."
+    MSG[input_empty]="Input must not be empty."
+    MSG[input_invalid]="Invalid input. Please try again."
+
+    # Root check
+    MSG[root_required]="This script must be run as root."
+    MSG[root_ok]="Root access confirmed."
+
+    # Mode menu
+    MSG[mode_title]="Mode selection"
+    MSG[choose_type]="Select container mode:"
+    MSG[mode_single]="Single"
+    MSG[mode_cancel]="Cancel"
+    MSG[desc_single]="Create a single container"
+    MSG[mode_selected_single]="Single mode selected."
+
+    # CT-ID selection
+    MSG[ctid_assigned]="Assigned CT-ID:"
+    MSG[ctid_none]="No free CT-ID found!"
+
+    # Hostname & password
+    MSG[hostname]="Enter container hostname:"
+    MSG[password]="Enter root password (min. 8 characters):"
+
+    # Template selection
+    MSG[template_select]="Select template:"
+    MSG[template_none]="No template files found!"
+    MSG[template_chosen]="Selected template:\n%s"
+
+    # OS detection
+    MSG[ostype_detected]="OS type detected:"
+    MSG[ostype_unknown]="Error: OS type could not be determined from filename."
+
+    # Resources
+    MSG[rootfs]="RootFS size (GB)"
+    MSG[cores]="CPU cores"
+    MSG[memory]="Memory (MB)"
+
+    # Container status
+    MSG[creating]="Creating container..."
+    MSG[created]="Container created successfully."
+    MSG[started]="Container has been started."
+
+    # Preview / Dry-Run
+    MSG[preview]="[Preview / Dry Run] – No container will be created."
+
+    # SSH Key integration
+    MSG[ssh_setup]="SSH key was successfully added to the container."
+    MSG[ssh_temp]="No valid SSH key provided – root login via password remains active."
+    MSG[ssh_found]="SSH key found and applied."
+    MSG[ssh_not_found]="No matching SSH key with comment found."
+    MSG[ssh_comment_prompt]="Enter comment of your SSH Public Key (e.g. user@laptop):"
+    MSG[ssh_lookup]="Looking for SSH key with comment"
 }
