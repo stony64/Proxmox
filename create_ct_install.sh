@@ -288,7 +288,7 @@ create_container() {
 # 7 – Container-Wartung / Systemaktualisierung
 ################################################################################
 
-### Systemlocales und Zeitzone im Container konfigurieren (de_DE.UTF-8 als Standard, Europe/Berlin)
+### Systemlocales und Zeitzone im Container konfigurieren (de_DE.UTF-8 als Standard)
 configure_locales() {
     log "${MSG[locales]}"
     log "${MSG[timezone]}"
@@ -298,10 +298,10 @@ configure_locales() {
        pct exec "$CT_ID" -- ln -sf /usr/share/zoneinfo/Europe/Berlin /etc/localtime &&
        pct exec "$CT_ID" -- bash -c 'echo "Europe/Berlin" > /etc/timezone'; then
         log_success "${MSG[locales_ok]}"
-        log_success
+        log_success "${MSG[timezone_ok]}"   # Ergänzung
     else
         log_error "${MSG[locales_fail]}"
-        log_error "${MSG[timezone]}"
+        log_error "${MSG[timezone_fail]}"
         exit 1
     fi
 }

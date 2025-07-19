@@ -108,6 +108,7 @@ set_default_german() {
     MSG[locales]="System-Sprachumgebung (Locales: de_DE und en_US) wird im Container eingerichtet..."
     MSG[timezone]="Setze Systemzeitzone auf Europe/Berlin im Container..."
     MSG[timezone_ok]="Zeitzone erfolgreich gesetzt: Europe/Berlin."
+    MSG[timezone_fail]="Fehler beim Setzen der Zeitzone im Container!"
 
     # Vorschau / Dry-Run
     MSG[preview]="[Vorschau / Dry Run] – Kein Container wird erstellt."
@@ -174,7 +175,7 @@ set_default_english() {
     MSG[locales]="Configuring system locales (de_DE and en_US) in container..."
     MSG[timezone]="Setting system timezone to Europe/Berlin in container..."
     MSG[timezone_ok]="Timezone successfully set to Europe/Berlin."
-
+    MSG[timezone_fail]="Failed to set timezone in container!"
 
     # Preview / Dry-Run
     MSG[preview]="[Preview / Dry Run] – No container will be created."
