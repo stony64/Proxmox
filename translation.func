@@ -100,6 +100,9 @@ set_default_german() {
     MSG[creating]="Container wird erstellt..."
     MSG[created]="Container wurde erfolgreich erstellt."
     MSG[started]="Container wurde gestartet."
+    MSG[update]="Führe apt-Update und Systembereitstellung im Container aus..."
+    MSG[update_ok]="Container erfolgreich aktualisiert."
+    MSG[update_fail]="Update im Container fehlgeschlagen!"
 
     # Vorschau / Dry-Run
     MSG[preview]="[Vorschau / Dry Run] – Kein Container wird erstellt."
@@ -158,6 +161,9 @@ set_default_english() {
     MSG[creating]="Creating container..."
     MSG[created]="Container created successfully."
     MSG[started]="Container has been started."
+    MSG[update]="Running apt update and system provisioning in container..."
+    MSG[update_ok]="Container successfully updated."
+    MSG[update_fail]="Update failed inside container!"
 
     # Preview / Dry-Run
     MSG[preview]="[Preview / Dry Run] – No container will be created."
