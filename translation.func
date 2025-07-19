@@ -103,6 +103,9 @@ set_default_german() {
     MSG[update]="Führe apt-Update und Systembereitstellung im Container aus..."
     MSG[update_ok]="Container erfolgreich aktualisiert."
     MSG[update_fail]="Update im Container fehlgeschlagen!"
+    MSG[locales]="🗣️ Konfiguriere System-Sprachumgebung (Locales: de_DE und en_US) im Container..."
+    MSG[locales_ok]="Locales wurden erfolgreich eingerichtet (Standard: de_DE.UTF-8)."
+    MSG[locales_fail]="Locale-Konfiguration im Container fehlgeschlagen!"
 
     # Vorschau / Dry-Run
     MSG[preview]="[Vorschau / Dry Run] – Kein Container wird erstellt."
@@ -164,6 +167,9 @@ set_default_english() {
     MSG[update]="Running apt update and system provisioning in container..."
     MSG[update_ok]="Container successfully updated."
     MSG[update_fail]="Update failed inside container!"
+    MSG[locales]="🗣️ Configuring system locales (de_DE and en_US) in container..."
+    MSG[locales_ok]="Locales successfully configured (default: de_DE.UTF-8)."
+    MSG[locales_fail]="Locale configuration in container failed!"
 
     # Preview / Dry-Run
     MSG[preview]="[Preview / Dry Run] – No container will be created."

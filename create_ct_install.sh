@@ -288,13 +288,26 @@ create_container() {
 # 7 – Container-Wartung / Systemaktualisierung
 ################################################################################
 
+### Systemlocales im Container konfigurieren (de_DE.UTF-8 als Standard)
+configure_locales() {
+    log "${MSG[locales]}"
+    if pct exec "$CT_ID" -- apt-get install -y -qq locales &&
+       pct exec "$CT_ID" -- bash -c "echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen; echo 'de_DE.UTF-8 UTF-8' >> /etc/locale.gen; locale-gen" &&
+       pct exec "$CT_ID" -- update-locale LANG=de_DE.UTF-8; then
+        log_success "${MSG[locales_ok]}"
+    else
+        log_error "${MSG[locales_fail]}"
+        exit 1
+    fi
+}
+
 ### Container per APT aktualisieren
 update_container() {
     log "${MSG[update]}"
     if pct exec "$CT_ID" -- bash -c '
         DEBIAN_FRONTEND=noninteractive
         apt-get update -qq &&
-        apt-get upgrade -y -qq &&
+        # apt-get upgrade -y -qq &&
         apt-get autoremove -y -qq &&
         apt-get clean -qq
     '; then
@@ -304,7 +317,6 @@ update_container() {
         exit 1
     fi
 }
-
 
 ################################################################################
 # 8 – Hauptprogramm
@@ -327,6 +339,7 @@ main() {
     prepare_ssh_key_prestart
     create_container
     finalize_ssh_key_after_start
+    configure_locales
     update_container
 }
 
