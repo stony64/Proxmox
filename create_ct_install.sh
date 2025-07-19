@@ -392,7 +392,32 @@ EOF
 }
 
 ################################################################################
-# 8 – Hauptprogramm
+# 8 – Abschluss und Zusammenfassung
+################################################################################
+
+# Kurze Übersicht in der Konsole nach Skriptausführung
+print_summary() {
+    echo
+    echo "Container erfolgreich erstellt"
+    echo "----------------------------------------"
+    echo "CT-ID:          $CT_ID"
+    echo "Hostname:       $CT_HOSTNAME"
+    echo "OS-Typ:         $OSType"
+    echo "Template:       $TEMPLATE_FILE"
+    echo "CPU-Kerne:      $CT_CORES"
+    echo "RAM:            ${CT_MEMORY} MB"
+    echo "RootFS:         ${ROOTFS_SIZE} GB"
+    echo "IPv4-Adresse:   ${CT_IPV4}"
+    echo "IPv4-Gateway:   ${GATEWAY_IPV4}"
+    echo "IPv6-Adresse:   ${CT_IPV6}"
+    echo "IPv6-Gateway:   ${GATEWAY_IPV6}"
+    echo "----------------------------------------"
+    echo "Zugriff: pct enter $CT_ID oder ssh root@${CT_IPV4}"
+    echo
+}
+
+################################################################################
+# 9 – Hauptprogramm
 ################################################################################
 
 main() {
@@ -416,6 +441,7 @@ main() {
     configure_locales
     update_container
     clone_dotfiles_in_container
+    print_summary
 }
 
 main "$@"
