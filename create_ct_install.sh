@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 ###############################################################################
 # Proxmox LXC Container Creator
-# Version:    2.7.2
+# Version:    2.7.3
 # Datum:      2025-07-20
 #
 # Beschreibung:
@@ -16,7 +16,7 @@
 ###############################################################################
 
 set -euo pipefail
-trap 'log_error "💥 FEHLER in Zeile $LINENO"; exit 2' ERR
+trap 'log_error "FEHLER in Zeile $LINENO"; exit 2' ERR
 
 ################################################################################
 # 1 – Sprachmodul initialisieren
@@ -77,15 +77,15 @@ request_positive_integer() {
 
 ### Dry Run: Konfigurationsvorschau anzeigen
 dry_run_preview() {
-    log "📝 ${MSG[preview]}"
-    log "   ${MSG[ctid_assigned]} $CT_ID"
-    log "   Hostname: $CT_HOSTNAME"
-    log "   OS-Type: $OSType"
-    log "   Template: $TEMPLATE_FILE"
-    log "   ${MSG[rootfs]}: $ROOTFS_SIZE GB"
-    log "   ${MSG[cores]}: $CT_CORES"
-    log "   ${MSG[memory]}: $CT_MEMORY MB"
-    log "   ${MSG[abort]}"
+    log "${MSG[preview]}"
+    log "${MSG[ctid_assigned]} $CT_ID"
+    log "Hostname: $CT_HOSTNAME"
+    log "OS-Type: $OSType"
+    log "Template: $TEMPLATE_FILE"
+    log "${MSG[rootfs]}: $ROOTFS_SIZE GB"
+    log "${MSG[cores]}: $CT_CORES"
+    log "${MSG[memory]}: $CT_MEMORY MB"
+    log "${MSG[abort]}"
     exit 0
 }
 
@@ -124,12 +124,10 @@ input_hostname() {
     while true; do
         CT_HOSTNAME=$(whiptail --title "$(dialog_title Hostname)" \
             --inputbox "${MSG[hostname]}" 10 60 "" 3>&1 1>&2 2>&3) || exit_with_log "${MSG[abort]}"
-        
         if [[ -z "$CT_HOSTNAME" ]]; then
             whiptail --title "$(dialog_title Fehler)" --msgbox "${MSG[input_empty]}" 8 60
             continue
         fi
-
         if [[ "$CT_HOSTNAME" =~ ^[a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?$ ]]; then
             break
         else
@@ -159,13 +157,10 @@ select_template() {
     log "${MSG[template_select]} $TEMPLATE_PATH"
     mapfile -t templates < <(cd "$TEMPLATE_PATH" && ls -1 *-standard_*.tar.zst 2>/dev/null || true)
     [[ ${#templates[@]} -eq 0 ]] && exit_with_log "${MSG[template_none]}"
-
     local menu_items=()
     for tpl in "${templates[@]}"; do menu_items+=("$tpl" ""); done
-
     TEMPLATE_FILE=$(whiptail --title "$(dialog_title Template)" \
         --menu "${MSG[template_select]}" 20 70 10 "${menu_items[@]}" 3>&1 1>&2 2>&3) || exit_with_log "${MSG[abort]}"
-    
     OSTEMPLATE="${TEMPLATE_PATH}/${TEMPLATE_FILE}"
     log "$(printf "${MSG[template_chosen]}" "$TEMPLATE_FILE")"
 }
@@ -201,19 +196,16 @@ input_resources() {
 ask_for_laptop_key_comment() {
     LAPTOP_KEY_COMMENT=$(whiptail --title "$(dialog_title SSH)" \
         --inputbox "${MSG[ssh_comment_prompt]}" 10 70 "" 3>&1 1>&2 2>&3) || exit_with_log "${MSG[abort]}"
-    
     [[ -z "$LAPTOP_KEY_COMMENT" ]] && exit_with_log "${MSG[input_empty]}"
     log "${MSG[ssh_lookup]}: $LAPTOP_KEY_COMMENT"
 }
 
-### SSH-Key anhand Autorisierungs-Kommentar suchen
+### SSH-Key anhand Kommentar suchen
 extract_laptop_key() {
     local authfile="/root/.ssh/authorized_keys"
     [[ ! -f "$authfile" ]] && exit_with_log "authorized_keys nicht gefunden unter $authfile"
-
     local key_match
     key_match=$(grep -m1 "$LAPTOP_KEY_COMMENT" "$authfile" || true)
-
     if [[ -n "$key_match" && "$key_match" =~ ^ssh-(rsa|ed25519|ecdsa) ]]; then
         SSH_PUBKEY=$(mktemp "/tmp/lxc_ssh_${CT_ID}_XXXXXXXX.pub")
         echo "$key_match" > "$SSH_PUBKEY"
@@ -278,7 +270,6 @@ create_container() {
         --password "$CT_PASSWORD" \
         --ostype "$OSType" \
         --description "Erstellt am $(date '+%d.%m.%Y %H:%M:%S')"
-
     log_success "${MSG[created]} (CT-ID: $CT_ID)"
     pct start "$CT_ID"
     log_success "${MSG[started]} (CT-ID: $CT_ID)"
@@ -288,7 +279,7 @@ create_container() {
 # 7 – Container-Wartung / Systemaktualisierung
 ################################################################################
 
-### Systemlocales und Zeitzone im Container konfigurieren (de_DE.UTF-8 als Standard)
+### Systemlocales und Zeitzone im Container konfigurieren (de_DE.UTF-8 als Standard, Europe/Berlin)
 configure_locales() {
     log "${MSG[locales]}"
     log "${MSG[timezone]}"
@@ -298,7 +289,7 @@ configure_locales() {
        pct exec "$CT_ID" -- ln -sf /usr/share/zoneinfo/Europe/Berlin /etc/localtime &&
        pct exec "$CT_ID" -- bash -c 'echo "Europe/Berlin" > /etc/timezone'; then
         log_success "${MSG[locales_ok]}"
-        log_success "${MSG[timezone_ok]}"   # Ergänzung
+        log_success "${MSG[timezone_ok]}"
     else
         log_error "${MSG[locales_fail]}"
         log_error "${MSG[timezone_fail]}"
@@ -312,7 +303,7 @@ update_container() {
     if pct exec "$CT_ID" -- bash -c '
         DEBIAN_FRONTEND=noninteractive
         apt-get update -qq &&
-        # apt-get upgrade -y -qq &&
+        apt-get upgrade -y -qq &&
         apt-get autoremove -y -qq &&
         apt-get clean -qq
     '; then
@@ -327,7 +318,6 @@ update_container() {
 # 8 – Hauptprogramm
 ################################################################################
 
-### Main-Funktion: Ruft alle Module in Reihenfolge auf
 main() {
     check_root
     select_mode

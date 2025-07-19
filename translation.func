@@ -1,20 +1,14 @@
 #!/usr/bin/env bash
 ###############################################################################
 # translation.func – Mehrsprachigkeit für Proxmox LXC-Container-Ersteller
-# Version:    2.2
-# Datum:      2025-07-19
+# Version:    2.3
+# Datum:      2025-07-20
 #
 # Beschreibung:
 #   Initialisiert das Sprachsystem für das Bash-Hauptskript zur Container-Erstellung.
 #   Unterstützte Sprachen: Deutsch (Standard), Englisch.
 #   Alle Texte werden im assoziativen Array MSG[] bereitgestellt.
 #
-# Einbindung im Hauptskript:
-#   source "$(dirname "$0")/translation.func"
-#   load_translations
-#
-# Hinweise:
-#   - Falls keine Sprache gewählt wird oder whiptail fehlt: Standard Englisch.
 ###############################################################################
 
 declare -A MSG
@@ -55,65 +49,45 @@ load_translations() {
     fi
 }
 
-# 🇩🇪 Standardwerte Deutsch
+# ========================================
+# Deutsch
 set_default_german() {
-    # Allgemeine Eingabe & Abbruch
     MSG[abort]="Vorgang abgebrochen."
     MSG[input_empty]="Eingabe darf nicht leer sein."
     MSG[input_invalid]="Ungültige Eingabe. Bitte erneut versuchen."
-
-    # Root-Prüfung
     MSG[root_required]="Dieses Skript muss als root ausgeführt werden."
     MSG[root_ok]="Root-Rechte bestätigt."
-
-    # Moduswahl-Menü
     MSG[mode_title]="Moduswahl"
     MSG[choose_type]="Bitte Container-Modus wählen:"
     MSG[mode_single]="Einzeln"
     MSG[mode_cancel]="Abbrechen"
     MSG[desc_single]="Einen einzelnen Container anlegen"
     MSG[mode_selected_single]="Einzelmodus gewählt."
-
-    # CT-ID Auswahl
     MSG[ctid_assigned]="Vergebene Container-ID:"
     MSG[ctid_none]="Keine freie CT-ID gefunden!"
-
-    # Hostname & Passwort
     MSG[hostname]="Hostname für den Container eingeben:"
     MSG[password]="Root-Passwort (min. 8 Zeichen):"
-
-    # Template-Auswahl
     MSG[template_select]="Template auswählen:"
     MSG[template_none]="Keine Template-Dateien gefunden!"
     MSG[template_chosen]="Verwendetes Template:\n%s"
-
-    # OS-Erkennung
     MSG[ostype_detected]="OS-Typ erkannt:"
     MSG[ostype_unknown]="Fehler: OS-Typ im Template-Dateinamen nicht erkannt."
-
-    # Ressourcen
     MSG[rootfs]="RootFS-Größe (GB)"
     MSG[cores]="CPU-Kerne"
     MSG[memory]="Arbeitsspeicher (MB)"
-
-    # Container-Status
     MSG[creating]="Container wird erstellt..."
     MSG[created]="Container wurde erfolgreich erstellt."
     MSG[started]="Container wurde gestartet."
     MSG[update]="Führe apt-Update und Systembereitstellung im Container aus..."
     MSG[update_ok]="Container erfolgreich aktualisiert."
     MSG[update_fail]="Update im Container fehlgeschlagen!"
+    MSG[locales]="System-Sprachumgebung (Locales: de_DE und en_US) wird im Container eingerichtet..."
     MSG[locales_ok]="Locales wurden erfolgreich eingerichtet (Standard: de_DE.UTF-8)."
     MSG[locales_fail]="Locale-Konfiguration im Container fehlgeschlagen!"
-    MSG[locales]="System-Sprachumgebung (Locales: de_DE und en_US) wird im Container eingerichtet..."
     MSG[timezone]="Setze Systemzeitzone auf Europe/Berlin im Container..."
     MSG[timezone_ok]="Zeitzone erfolgreich gesetzt: Europe/Berlin."
-    MSG[timezone_fail]="Fehler beim Setzen der Zeitzone im Container!"
-
-    # Vorschau / Dry-Run
+    MSG[timezone_fail]="Fehler beim Setzen der Zeitzone im Container."
     MSG[preview]="[Vorschau / Dry Run] – Kein Container wird erstellt."
-
-    # SSH Key-Integration
     MSG[ssh_setup]="SSH-Key wurde erfolgreich im Container hinterlegt."
     MSG[ssh_temp]="Kein gültiger SSH-Key – Root-Login per Passwort aktiv."
     MSG[ssh_found]="SSH-Key wurde erkannt und übernommen."
@@ -122,65 +96,45 @@ set_default_german() {
     MSG[ssh_lookup]="Suche SSH-Key mit Kommentar"
 }
 
-# 🇬🇧 Standardwerte Englisch
+# ========================================
+# Englisch
 set_default_english() {
-    # General input & abort
     MSG[abort]="Operation aborted."
     MSG[input_empty]="Input must not be empty."
     MSG[input_invalid]="Invalid input. Please try again."
-
-    # Root check
     MSG[root_required]="This script must be run as root."
     MSG[root_ok]="Root access confirmed."
-
-    # Mode menu
     MSG[mode_title]="Mode selection"
     MSG[choose_type]="Select container mode:"
     MSG[mode_single]="Single"
     MSG[mode_cancel]="Cancel"
     MSG[desc_single]="Create a single container"
     MSG[mode_selected_single]="Single mode selected."
-
-    # CT-ID selection
     MSG[ctid_assigned]="Assigned CT-ID:"
     MSG[ctid_none]="No free CT-ID found!"
-
-    # Hostname & password
     MSG[hostname]="Enter container hostname:"
     MSG[password]="Enter root password (min. 8 characters):"
-
-    # Template selection
     MSG[template_select]="Select template:"
     MSG[template_none]="No template files found!"
     MSG[template_chosen]="Selected template:\n%s"
-
-    # OS detection
     MSG[ostype_detected]="OS type detected:"
     MSG[ostype_unknown]="Error: OS type could not be determined from filename."
-
-    # Resources
     MSG[rootfs]="RootFS size (GB)"
     MSG[cores]="CPU cores"
     MSG[memory]="Memory (MB)"
-
-    # Container status
     MSG[creating]="Creating container..."
     MSG[created]="Container created successfully."
     MSG[started]="Container has been started."
     MSG[update]="Running apt update and system provisioning in container..."
     MSG[update_ok]="Container successfully updated."
     MSG[update_fail]="Update failed inside container!"
-    MSG[locales_ok]="Locales successfully configured (default: de_DE.UTF-8)."
-    MSG[locales_fail]="Locale configuration in container failed!"
     MSG[locales]="Configuring system locales (de_DE and en_US) in container..."
+    MSG[locales_ok]="Locales successfully configured (default: de_DE.UTF-8)."
+    MSG[locales_fail]="Locale configuration in container failed."
     MSG[timezone]="Setting system timezone to Europe/Berlin in container..."
     MSG[timezone_ok]="Timezone successfully set to Europe/Berlin."
-    MSG[timezone_fail]="Failed to set timezone in container!"
-
-    # Preview / Dry-Run
+    MSG[timezone_fail]="Setting timezone in container failed."
     MSG[preview]="[Preview / Dry Run] – No container will be created."
-
-    # SSH Key integration
     MSG[ssh_setup]="SSH key was successfully added to the container."
     MSG[ssh_temp]="No valid SSH key provided – root login via password remains active."
     MSG[ssh_found]="SSH key found and applied."
