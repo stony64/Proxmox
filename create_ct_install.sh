@@ -285,7 +285,29 @@ create_container() {
 }
 
 ################################################################################
-# 7 – Hauptprogramm
+# 7 – Container-Wartung / Systemaktualisierung
+################################################################################
+
+### Container per APT aktualisieren
+update_container() {
+    log "${MSG[update]}"
+    if pct exec "$CT_ID" -- bash -c '
+        DEBIAN_FRONTEND=noninteractive
+        apt-get update -qq &&
+        apt-get upgrade -y -qq &&
+        apt-get autoremove -y -qq &&
+        apt-get clean -qq
+    '; then
+        log_success "${MSG[update_ok]}"
+    else
+        log_error "${MSG[update_fail]}"
+        exit 1
+    fi
+}
+
+
+################################################################################
+# 8 – Hauptprogramm
 ################################################################################
 
 ### Main-Funktion: Ruft alle Module in Reihenfolge auf
@@ -305,6 +327,7 @@ main() {
     prepare_ssh_key_prestart
     create_container
     finalize_ssh_key_after_start
+    update_container
 }
 
 main "$@"
