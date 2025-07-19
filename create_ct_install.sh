@@ -288,15 +288,20 @@ create_container() {
 # 7 – Container-Wartung / Systemaktualisierung
 ################################################################################
 
-### Systemlocales im Container konfigurieren (de_DE.UTF-8 als Standard)
+### Systemlocales und Zeitzone im Container konfigurieren (de_DE.UTF-8 als Standard, Europe/Berlin)
 configure_locales() {
     log "${MSG[locales]}"
-    if pct exec "$CT_ID" -- apt-get install -y -qq locales &&
+    log "${MSG[timezone]}"
+    if pct exec "$CT_ID" -- apt-get install -y -qq locales tzdata &&
        pct exec "$CT_ID" -- bash -c "echo 'en_US.UTF-8 UTF-8' >> /etc/locale.gen; echo 'de_DE.UTF-8 UTF-8' >> /etc/locale.gen; locale-gen" &&
-       pct exec "$CT_ID" -- update-locale LANG=de_DE.UTF-8; then
+       pct exec "$CT_ID" -- update-locale LANG=de_DE.UTF-8 &&
+       pct exec "$CT_ID" -- ln -sf /usr/share/zoneinfo/Europe/Berlin /etc/localtime &&
+       pct exec "$CT_ID" -- bash -c 'echo "Europe/Berlin" > /etc/timezone'; then
         log_success "${MSG[locales_ok]}"
+        log_success
     else
         log_error "${MSG[locales_fail]}"
+        log_error "${MSG[timezone]}"
         exit 1
     fi
 }
@@ -307,7 +312,7 @@ update_container() {
     if pct exec "$CT_ID" -- bash -c '
         DEBIAN_FRONTEND=noninteractive
         apt-get update -qq &&
-        apt-get upgrade -y -qq &&
+        # apt-get upgrade -y -qq &&
         apt-get autoremove -y -qq &&
         apt-get clean -qq
     '; then
