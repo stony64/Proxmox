@@ -1,3 +1,6 @@
+> ⚠️ Dieses Repository ist archiviert. Die aktive Entwicklung findest du jetzt unter:  
+> https://github.com/stony64/proxmox-lxc-creator
+
 # Proxmox LXC Container Creator
 
 Interaktives Bash-Skript zur automatisierten und sicheren Erstellung von LXC-Containern auf einem Proxmox VE-Host. Unterstützt Mehrsprachigkeit (Deutsch/Englisch), SSH-Key-Integration, automatisches Systemupdate, regionale Einstellungen und einfache Bedienung über TUI (whiptail).
